@@ -1,16 +1,240 @@
-name: Documentation publication setup
+name: Publish documentation
+
 on:
   push:
     branches: [main]
     paths: ['.github/workflows/publish.yml']
   workflow_dispatch:
+    inputs:
+      force:
+        description: Rebuild even when the frontend source is unchanged
+        type: boolean
+        default: false
+  schedule:
+    - cron: '3-58/5 * * * *'
+
 permissions:
-  contents: read
+  contents: write
+  pages: write
+  discussions: read
+
 concurrency:
   group: public-frontend-publication
   cancel-in-progress: true
+
 jobs:
-  prepare-documentation:
+  publish:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      PUBLISH_REPOSITORY: ${{ github.repository }}
     steps:
-      - run: echo 'Search portal publication stopped. Documentation-only publication is being configured.'
+      - name: Check out publication repository
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: publisher
+          persist-credentials: false
+
+      - name: Check out canonical frontend
+        uses: actions/checkout@v4
+        with:
+          repository: kryptostesmoiras/KryptosTesMoiras
+          ref: main
+          path: source
+          persist-credentials: false
+
+      - name: Verify existing Pages publication target
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api "repos/$PUBLISH_REPOSITORY/pages" > "$RUNNER_TEMP/pages.json"
+          python3 - <<'PY'
+          import json, os
+          with open(os.environ['RUNNER_TEMP'] + '/pages.json') as stream:
+              pages = json.load(stream)
+          source = pages.get('source') or {}
+          if pages.get('build_type') == 'workflow' or source.get('branch') != 'main' or source.get('path') != '/':
+              raise SystemExit('This publisher uses the existing Pages branch configuration. Set Settings > Pages > Deploy from a branch > main / (root), then run this workflow again.')
+          PY
+
+      - name: Read and enable repository Discussions
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api "repos/$PUBLISH_REPOSITORY" > "$RUNNER_TEMP/repository.json"
+          enabled=$(python3 -c 'import json,sys; print(str(json.load(open(sys.argv[1])).get("has_discussions",False)).lower())' "$RUNNER_TEMP/repository.json")
+          if [[ "$enabled" != true ]]; then
+            if gh api --method PATCH "repos/$PUBLISH_REPOSITORY" -F has_discussions=true > "$RUNNER_TEMP/repository.json"; then
+              enabled=true
+            else
+              echo '::warning::The built-in token could not enable Discussions. Enable Settings > General > Features > Discussions once as repository owner.'
+              enabled=false
+            fi
+          fi
+          export DISCUSSIONS_ENABLED="$enabled"
+          if [[ "$enabled" == true ]]; then
+            gh api graphql -f query='query { repository(owner:"kryptostesmoiras", name:"kryptostesmoiras.github.io") { discussions(first:30, orderBy:{field:UPDATED_AT,direction:DESC}) { nodes { title url comments { totalCount } } } } }' > "$RUNNER_TEMP/discussions.json"
+          fi
+          python3 - <<'PY'
+          from pathlib import Path
+          from datetime import datetime, timezone
+          import json, os
+          enabled = os.environ['DISCUSSIONS_ENABLED'] == 'true'
+          items = []
+          if enabled:
+              payload = json.loads((Path(os.environ['RUNNER_TEMP']) / 'discussions.json').read_text())
+              for item in payload['data']['repository']['discussions']['nodes']:
+                  items.append({'title': item['title'], 'url': item['url'], 'comments': item['comments']['totalCount']})
+          Path('source/github/pages/public/discussions.json').write_text(json.dumps({
+              'enabled': enabled,
+              'url': 'https://github.com/kryptostesmoiras/kryptostesmoiras.github.io/discussions',
+              'items': items,
+              'checkedAt': datetime.now(timezone.utc).isoformat(),
+          }))
+          PY
+
+      - name: Detect frontend changes
+        id: source
+        env:
+          FORCE: ${{ inputs.force || false }}
+        run: |
+          set -euo pipefail
+          SOURCE_COMMIT=$(git -C source rev-parse HEAD)
+          SOURCE_TREE=$(git -C source rev-parse HEAD^{tree})
+          WORKFLOW_HASH=$(git -C publisher hash-object .github/workflows/publish.yml)
+          export SOURCE_COMMIT SOURCE_TREE WORKFLOW_HASH
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          manifest = Path('publisher/deployment.json')
+          try:
+              previous = json.loads(manifest.read_text())
+          except (OSError, ValueError):
+              previous = {}
+          needed = (os.environ['FORCE'] == 'true'
+                    or previous.get('source_tree') != os.environ['SOURCE_TREE']
+                    or previous.get('workflow_hash') != os.environ['WORKFLOW_HASH']
+                    or not Path('publisher/index.html').is_file()
+                    or not Path('publisher/assets').is_dir()
+                    or not Path('publisher/documents.json').is_file())
+          try:
+              previous_discussions = json.loads(Path('publisher/discussions.json').read_text())
+          except (OSError, ValueError):
+              previous_discussions = {}
+          current_discussions = json.loads(Path('source/github/pages/public/discussions.json').read_text())
+          previous_discussions.pop('checkedAt', None)
+          current_discussions.pop('checkedAt', None)
+          needed = needed or previous_discussions != current_discussions
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write(f"needed={str(needed).lower()}\n")
+              output.write(f"commit={os.environ['SOURCE_COMMIT']}\n")
+              output.write(f"tree={os.environ['SOURCE_TREE']}\n")
+              output.write(f"workflow={os.environ['WORKFLOW_HASH']}\n")
+          PY
+
+      - name: Set up Node.js
+        if: steps.source.outputs.needed == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: source/github/pages/package-lock.json
+
+      - name: Install locked dependencies
+        if: steps.source.outputs.needed == 'true'
+        working-directory: source/github/pages
+        run: npm ci --no-audit --no-fund
+
+      - name: Check TypeScript and build React
+        if: steps.source.outputs.needed == 'true'
+        working-directory: source/github/pages
+        run: npm run build
+
+      - name: Replace generated publication files
+        if: steps.source.outputs.needed == 'true'
+        env:
+          SOURCE_COMMIT: ${{ steps.source.outputs.commit }}
+          SOURCE_TREE: ${{ steps.source.outputs.tree }}
+          WORKFLOW_HASH: ${{ steps.source.outputs.workflow }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          from datetime import datetime, timezone
+          import json, os, shutil
+          source = Path('source/github/pages/dist')
+          destination = Path('publisher')
+          assert (source / 'index.html').is_file()
+          # These are generated site files only. Preserve .git, .github,
+          # CNAME and any other owner-managed repository configuration.
+          managed = ['assets', 'shared', 'documents.json', 'discussions.json', 'index.html', 'favicon.svg', 'public.js',
+                     'config.js', 'access.html', 'demo.html', 'documents.html',
+                     'economy.html', 'platform.html', 'project.html', 'security.html']
+          for name in managed:
+              target = destination / name
+              if target.is_dir():
+                  shutil.rmtree(target)
+              elif target.exists():
+                  target.unlink()
+          for entry in source.iterdir():
+              target = destination / entry.name
+              if entry.is_dir():
+                  shutil.copytree(entry, target)
+              else:
+                  shutil.copy2(entry, target)
+          (destination / '.nojekyll').touch()
+          (destination / 'deployment.json').write_text(json.dumps({
+              'source_repository': 'kryptostesmoiras/KryptosTesMoiras',
+              'source_path': 'github/pages (documentation viewer) and tracked Markdown files',
+              'source_commit': os.environ['SOURCE_COMMIT'],
+              'source_tree': os.environ['SOURCE_TREE'],
+              'workflow_hash': os.environ['WORKFLOW_HASH'],
+              'generated_at': datetime.now(timezone.utc).isoformat(),
+          }, indent=2) + '\n')
+          PY
+
+      - name: Commit generated build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        if: steps.source.outputs.needed == 'true'
+        working-directory: publisher
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add --all
+          if ! git diff --cached --quiet; then
+            git commit -m 'Publish documentation from KryptosTesMoiras'
+            git -c credential.helper= -c credential.helper='!gh auth git-credential' push origin HEAD:main
+          fi
+
+      - name: Request and verify Pages build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          # Commits made with GITHUB_TOKEN do not automatically trigger Pages.
+          # Request the branch build explicitly, and retry after any queued build.
+          expected=$(git -C publisher rev-parse HEAD)
+          requested=false
+          for attempt in $(seq 1 30); do
+            gh api "repos/$PUBLISH_REPOSITORY/pages/builds/latest" > "$RUNNER_TEMP/latest-build.json"
+            read -r commit status < <(python3 -c 'import json,sys; p=json.load(open(sys.argv[1])); print(p.get("commit", "unknown"), p.get("status", "unknown"))' "$RUNNER_TEMP/latest-build.json")
+            if [[ "$commit" == "$expected" && "$status" == 'built' ]]; then
+              echo "Pages published $expected"
+              exit 0
+            fi
+            if [[ "$commit" == "$expected" && "$status" == 'errored' && "$requested" == true ]]; then
+              echo 'GitHub Pages reported a build failure.' >&2
+              exit 1
+            fi
+            if [[ "$status" != 'queued' && "$status" != 'building' && "$requested" == false ]]; then
+              gh api --method POST "repos/$PUBLISH_REPOSITORY/pages/builds" --silent
+              requested=true
+            fi
+            sleep 15
+          done
+          echo 'Pages did not confirm the expected commit before the timeout; the next run will retry.' >&2
+          exit 1

@@ -1,34 +1,37 @@
-# Frontend publication
+# Documentation and Discussions publication
 
-The only maintained UI source is `kryptostesmoiras/KryptosTesMoiras`, branch `main`, directory `github/pages/`.
+This repository publishes only the project's Markdown documentation and its public GitHub Discussions space. It does not publish the source-search portal, a private workspace, accounts, desktop binaries or sample projects.
 
-The workflow `.github/workflows/publish.yml` checks out that directory, installs its locked npm dependencies, checks TypeScript, builds the React application, and publishes only the generated output here. Files under `assets/`, `index.html` and `favicon.svg` are build artifacts, not a second set of UI sources. Do not edit them manually.
+## Single source and build
 
-## Automatic updates
+The canonical Markdown files and React/TSX document reader live in `kryptostesmoiras/KryptosTesMoiras`. The workflow `.github/workflows/publish.yml` checks out that repository, generates the document collection from all tracked `.md`/`.markdown` files, checks TypeScript and builds `github/pages/`.
 
-GitHub Actions checks the canonical frontend every five minutes. GitHub can delay scheduled runs; this is not an instantaneous cross-repository push hook. A change to the frontend tree or publishing workflow triggers a build. Changes elsewhere in the source repository do not rebuild the UI. The workflow also runs when its own configuration changes, and can be started manually from Actions > Publish React frontend > Run workflow. Use `force` to rebuild an unchanged source tree.
+The root `index.html`, `assets/`, `documents.json`, `discussions.json`, `favicon.svg` and `deployment.json` are generated publication files. Do not maintain copies of document content or UI code here by hand. `CNAME`, `.github/`, this documentation and other owner-managed configuration are preserved.
 
-No cross-repository token is required while the source repository is public. The workflow uses this repository's built-in `GITHUB_TOKEN` to publish generated files. It explicitly requests a Pages build because commits made with that token do not automatically trigger Pages. It checks that the published Pages commit matches the generated build; a failure is retried on the next run.
+## Synchronization
 
-GitHub can disable scheduled workflows in public repositories after 60 days without repository activity. If that happens, re-enable the workflow in Actions and run it manually. A direct source-push trigger would require a separately authorized cross-repository credential; none is assumed or embedded.
+Actions checks for changes every five minutes. It rebuilds if the source tree, publisher workflow or Discussions snapshot changed. GitHub can delay scheduled runs; this is not an instantaneous cross-repository push hook. A manual run is available in Actions > Publish documentation > Run workflow, with a `force` option.
 
-## Repository settings
+No cross-repository token is required for the public source. The built-in token commits the generated files here and explicitly requests the existing branch-based Pages build. The workflow verifies that Pages built the expected commit, and retries on a later run after a failure.
 
-GitHub Pages must retain its existing branch publication setting: **Deploy from a branch**, branch **main**, directory **/ (root)**. GitHub Actions must be enabled, and repository rules must allow the built-in token to commit the generated files. The workflow has `contents: write` and `pages: write`; it does not need a personal token or an onion address.
+GitHub may disable scheduled workflows in public repositories after 60 days without repository activity. Re-enable the workflow in Actions if this occurs.
 
-This uses Actions to synchronize and build the application, and the existing branch-based Pages service to serve it. Do not change the Pages source to “GitHub Actions” without migrating the final publication step to the Pages artifact/deployment actions as well.
+## Discussions
 
-`deployment.json` records the canonical source commit, frontend tree and workflow revision for the generated build. The workflow preserves `CNAME`, `.github/`, this documentation and other owner-managed configuration. It removes obsolete portal files and never generates sample projects.
+The workflow checks this repository's Discussions feature and attempts to enable it. If GitHub denies that change to `GITHUB_TOKEN`, the repository owner must enable **Settings > General > Features > Discussions** once. The documentation deployment continues; the site reports Discussions as unavailable until activation is confirmed.
 
-## Local verification
+When enabled, the site lists up to 30 recently updated real discussions from the repository and links to GitHub for reading, replying and creating topics. Each document links to a Discussions search for its path. Counts and topic titles come from GitHub, not generated examples. This is native GitHub Discussions, not an embedded account or comment service: participation uses a GitHub account. No credentials, fake comments or private application accounts are collected by the documentation site.
 
-In the canonical source checkout:
+## Pages settings
+
+Keep **Deploy from a branch**, branch **main**, directory **/ (root)**. Actions must be enabled and repository rules must permit its token to commit generated files. Required workflow permissions are `contents: write` `pages: write` and `discussions: read`. The old React search portal is not an input to publication.
+
+Local preview from the canonical repository:
 
 ```sh
 cd github/pages
 npm ci
-npm run build
-npm run preview
+npm run dev
 ```
 
-The browser entry file is generated HTML, loading the compiled React/TSX application and local assets. The presence of `index.html` does not mean that the former authored HTML portal is still in use.
+Use `npm run build` and `npm run preview` to verify the production document reader. English Markdown remains in its source language; the navigation retains twenty UI languages and four themes plus system mode.
