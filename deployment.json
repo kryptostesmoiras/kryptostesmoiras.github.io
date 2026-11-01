@@ -1,8 +1,8 @@
 {
   "source_repository": "kryptostesmoiras/KryptosTesMoiras",
-  "source_path": "github/pages (documentation viewer) and tracked Markdown files",
-  "source_commit": "21ec185e146c24cb2052b70844273eadcd46e5eb",
-  "source_tree": "6d7f3a07d9e352b2c04a0f8a1cfd15be10e82907",
-  "workflow_hash": "3bbf14ab9a16469007b29ce8ff8775ddbf2b7482",
-  "generated_at": "2026-11-01T04:32:16.976991+00:00"
+  "source_path": "github/pages: root website and /KryptosTesMoiras/ documentation, license and discussions",
+  "source_commit": "d70bdac6838fb36da4c660b0b7f254eb272a4306",
+  "source_tree": "4f3dc24c2aa56ecfbbd505cd78e5462d1e420225",
+  "workflow_hash": "66b69e76a1041273e04fa12088876667e461a384",
+  "generated_at": "2026-11-01T04:56:14.100605+00:00"
 }
