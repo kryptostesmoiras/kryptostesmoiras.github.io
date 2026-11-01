@@ -1,32 +1,35 @@
-# Documentation and Discussions publication
+# Website and project documentation publication
 
-This repository publishes only the project's Markdown documentation and its public GitHub Discussions space. It does not publish the source-search portal, a private workspace, accounts, desktop binaries or sample projects.
+The two destinations are distinct:
 
-## Single source and build
+| URL | Purpose |
+| --- | --- |
+| `https://kryptostesmoiras.github.io/` | Public React website: horizontal banner, project search interface and planned desktop application information. |
+| `https://kryptostesmoiras.github.io/KryptosTesMoiras/` | Project Markdown reader, license and public Discussions. |
 
-The canonical Markdown files and React/TSX document reader live in `kryptostesmoiras/KryptosTesMoiras`. The workflow `.github/workflows/publish.yml` checks out that repository, generates the document collection from all tracked `.md`/`.markdown` files, checks TypeScript and builds `github/pages/`.
+The sole maintained UI source is `kryptostesmoiras/KryptosTesMoiras`, branch `main`, under `github/pages/`. Vite builds two TSX entry points. The Markdown collector adds all tracked `.md`/`.markdown` files and `License` to the documentation subsite. Generated document and discussion JSON live only under `KryptosTesMoiras/`.
 
-The root `index.html`, `assets/`, `documents.json`, `discussions.json`, `favicon.svg` and `deployment.json` are generated publication files. Do not maintain copies of document content or UI code here by hand. `CNAME`, `.github/`, this documentation and other owner-managed configuration are preserved.
+The publishing workflow retrieves the source repository, installs locked dependencies, builds both entries, and publishes the complete `dist/` output to this repository's existing Pages `main` / root source. Do not edit generated root assets or the generated project subfolder manually. `CNAME`, `.github/`, this documentation and other owner-managed configuration are preserved.
 
-## Synchronization
+## Automatic synchronization
 
-Actions checks for changes every five minutes. It rebuilds if the source tree, publisher workflow or Discussions snapshot changed. GitHub can delay scheduled runs; this is not an instantaneous cross-repository push hook. A manual run is available in Actions > Publish documentation > Run workflow, with a `force` option.
+Actions checks every five minutes for changes in the canonical source, workflow or Discussion metadata. GitHub may delay scheduled runs. Manual runs, including forced rebuilds, are available under Actions > Publish website and project documentation.
 
-No cross-repository token is required for the public source. The built-in token commits the generated files here and explicitly requests the existing branch-based Pages build. The workflow verifies that Pages built the expected commit, and retries on a later run after a failure.
+The built-in token commits generated output and explicitly requests the branch Pages build; token-authenticated commits do not trigger Pages automatically. The workflow verifies that the expected commit was built and retries on a subsequent run after a failure. No cross-repository personal token is required for the public source.
 
 GitHub may disable scheduled workflows in public repositories after 60 days without repository activity. Re-enable the workflow in Actions if this occurs.
 
 ## Discussions
 
-The workflow checks this repository's Discussions feature and attempts to enable it. If GitHub denies that change to `GITHUB_TOKEN`, the repository owner must enable **Settings > General > Features > Discussions** once. The documentation deployment continues; the site reports Discussions as unavailable until activation is confirmed.
+The project subsite displays recent real topics from this hosting repository's public GitHub Discussions and links to GitHub for reading and participation. Each document links to its path's discussion search. No fake comments, public-site account service or credentials form is provided.
 
-When enabled, the site lists up to 30 recently updated real discussions from the repository and links to GitHub for reading, replying and creating topics. Each document links to a Discussions search for its path. Counts and topic titles come from GitHub, not generated examples. This is native GitHub Discussions, not an embedded account or comment service: participation uses a GitHub account. No credentials, fake comments or private application accounts are collected by the documentation site.
+The workflow checks and attempts to enable Discussions. If the built-in token cannot change that setting, the owner must enable Settings > General > Features > Discussions once. The documentation view reports unavailability until activation is confirmed. Participation uses a GitHub account, separate from the platform's planned anonymous accounts.
 
-## Pages settings
+## Pages settings and preview
 
-Keep **Deploy from a branch**, branch **main**, directory **/ (root)**. Actions must be enabled and repository rules must permit its token to commit generated files. Required workflow permissions are `contents: write` `pages: write` and `discussions: read`. The old React search portal is not an input to publication.
+Keep **Deploy from a branch**, branch **main**, directory **/ (root)**. Actions must be enabled and its token must be allowed to commit generated files. Workflow permissions are `contents: write`, `pages: write`, and `discussions: read`.
 
-Local preview from the canonical repository:
+From the canonical repository:
 
 ```sh
 cd github/pages
@@ -34,4 +37,4 @@ npm ci
 npm run dev
 ```
 
-Use `npm run build` and `npm run preview` to verify the production document reader. English Markdown remains in its source language; the navigation retains twenty UI languages and four themes plus system mode.
+Preview `/` for the website and `/KryptosTesMoiras/` for documentation. `npm run build` builds both; `npm run preview` serves the production result. Root `deployment.json` records the source revision used for both destinations.

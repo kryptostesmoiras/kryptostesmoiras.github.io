@@ -1,4 +1,4 @@
-name: Publish documentation
+name: Publish website and project documentation
 
 on:
   push:
@@ -88,7 +88,9 @@ jobs:
               payload = json.loads((Path(os.environ['RUNNER_TEMP']) / 'discussions.json').read_text())
               for item in payload['data']['repository']['discussions']['nodes']:
                   items.append({'title': item['title'], 'url': item['url'], 'comments': item['comments']['totalCount']})
-          Path('source/github/pages/public/discussions.json').write_text(json.dumps({
+          destination = Path('source/github/pages/public/KryptosTesMoiras/discussions.json')
+          destination.parent.mkdir(parents=True, exist_ok=True)
+          destination.write_text(json.dumps({
               'enabled': enabled,
               'url': 'https://github.com/kryptostesmoiras/kryptostesmoiras.github.io/discussions',
               'items': items,
@@ -119,12 +121,13 @@ jobs:
                     or previous.get('workflow_hash') != os.environ['WORKFLOW_HASH']
                     or not Path('publisher/index.html').is_file()
                     or not Path('publisher/assets').is_dir()
-                    or not Path('publisher/documents.json').is_file())
+                    or not Path('publisher/KryptosTesMoiras/index.html').is_file()
+                    or not Path('publisher/KryptosTesMoiras/documents.json').is_file())
           try:
-              previous_discussions = json.loads(Path('publisher/discussions.json').read_text())
+              previous_discussions = json.loads(Path('publisher/KryptosTesMoiras/discussions.json').read_text())
           except (OSError, ValueError):
               previous_discussions = {}
-          current_discussions = json.loads(Path('source/github/pages/public/discussions.json').read_text())
+          current_discussions = json.loads(Path('source/github/pages/public/KryptosTesMoiras/discussions.json').read_text())
           previous_discussions.pop('checkedAt', None)
           current_discussions.pop('checkedAt', None)
           needed = needed or previous_discussions != current_discussions
@@ -169,7 +172,7 @@ jobs:
           assert (source / 'index.html').is_file()
           # These are generated site files only. Preserve .git, .github,
           # CNAME and any other owner-managed repository configuration.
-          managed = ['assets', 'shared', 'documents.json', 'discussions.json', 'index.html', 'favicon.svg', 'public.js',
+          managed = ['assets', 'KryptosTesMoiras', 'shared', 'documents.json', 'discussions.json', 'index.html', 'favicon.svg', 'public.js',
                      'config.js', 'access.html', 'demo.html', 'documents.html',
                      'economy.html', 'platform.html', 'project.html', 'security.html']
           for name in managed:
@@ -187,7 +190,7 @@ jobs:
           (destination / '.nojekyll').touch()
           (destination / 'deployment.json').write_text(json.dumps({
               'source_repository': 'kryptostesmoiras/KryptosTesMoiras',
-              'source_path': 'github/pages (documentation viewer) and tracked Markdown files',
+              'source_path': 'github/pages: root website and /KryptosTesMoiras/ documentation, license and discussions',
               'source_commit': os.environ['SOURCE_COMMIT'],
               'source_tree': os.environ['SOURCE_TREE'],
               'workflow_hash': os.environ['WORKFLOW_HASH'],
@@ -206,7 +209,7 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add --all
           if ! git diff --cached --quiet; then
-            git commit -m 'Publish documentation from KryptosTesMoiras'
+            git commit -m 'Publish website and project documentation from KryptosTesMoiras'
             git -c credential.helper= -c credential.helper='!gh auth git-credential' push origin HEAD:main
           fi
 
