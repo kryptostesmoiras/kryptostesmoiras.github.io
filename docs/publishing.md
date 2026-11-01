@@ -38,3 +38,7 @@ npm run dev
 ```
 
 Preview `/` for the website and `/KryptosTesMoiras/` for documentation. `npm run build` builds both; `npm run preview` serves the production result. Root `deployment.json` records the source revision used for both destinations.
+
+## Existing project Pages site
+
+The project repository also has its own Pages site, which can take precedence over the generated fallback folder at `/KryptosTesMoiras/`. Its `Publish project documentation` workflow builds the standalone document reader (`npm run build:docs`) and publishes it through that project’s existing Pages branch and directory. It preserves Markdown and owner-managed files and does not require a Pages setting change. The root website remains published by this hosting repository.
