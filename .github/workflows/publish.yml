@@ -213,6 +213,22 @@ jobs:
             git -c credential.helper= -c credential.helper='!gh auth git-credential' push origin HEAD:main
           fi
 
+      - name: Recover the Pages deployment reported as blocked
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # One-time recovery of the exact superseded version reported by Pages.
+          if gh api --method POST "repos/$PUBLISH_REPOSITORY/pages/deployments/164f7b3d180a9cb9684161a9aca867405c239b7e/cancel" --silent > "$RUNNER_TEMP/pages-cancel-result.txt" 2> "$RUNNER_TEMP/pages-cancel-error.txt"; then
+            echo '::notice::The blocking Pages deployment was canceled.'
+          else
+            python3 - <<'PYRECOVERY'
+          from pathlib import Path
+          import os
+          message = (Path(os.environ['RUNNER_TEMP']) / 'pages-cancel-error.txt').read_text().replace('\n', ' ')[:500]
+          print('::warning::Pages cancellation response: ' + message)
+          PYRECOVERY
+          fi
+
       - name: Cancel superseded Pages deployments
         env:
           GH_TOKEN: ${{ github.token }}
