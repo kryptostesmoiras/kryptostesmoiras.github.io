@@ -151,7 +151,7 @@ jobs:
         working-directory: source/github/pages
         run: npm ci --no-audit --no-fund
 
-      - name: Check TypeScript and build React
+      - name: Build website, documentation and approved branding
         if: steps.source.outputs.needed == 'true'
         working-directory: source/github/pages
         run: npm run build
